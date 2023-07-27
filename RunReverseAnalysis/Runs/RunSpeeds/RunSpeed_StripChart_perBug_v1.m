@@ -1,0 +1,146 @@
+%% Strip chart for inst. run speeds per bug 
+%January 2021
+%by Ercag
+%from the v5 - Release notes:  "switch" mode was added to select mean, median or
+%inst. speed distributions
+clearvars;
+close all; 
+
+%% Define Export Path for figures
+ExpPath = 'F:\Dropbox\Research\NikauBackup\Data\RunReverseAnalysis\RunAnalysis\SpeedAnalysis\StripCharts\';
+%% Call the run reverse analysis files 
+MainPath = 'F:\Dropbox\Research\NikauBackup\Data\RunReverseAnalysis\Data';
+StrainLabels = {'KMT43','KMT47','KMT53'}; 
+%% User query to select which type of observable to plot 
+disp('Which observable to plot?')
+disp('1-)Instantaneous Speed')
+disp('2-)Mean Speed')
+disp('3-)Median Speed')
+prompt = 'Enter the number of the observable to plot:\n'; 
+n_Query = input(prompt); 
+
+if n_Query  == 1 
+   observable = 'instV';
+elseif n_Query == 2 
+    observable = 'meanV';
+elseif n_Query == 3
+    observable = 'medV'; 
+end
+
+prompt_BugNum = 'Enter the number of bugs to analyze \n';
+nBug = input(prompt_BugNum);
+
+%% Parameters
+%Acquisition and ADMM parameter
+fps = 30; %Hz
+Lambda = 0.5;
+
+%Time stamp for the PNG/PDF files
+Stamp =  ['[' char(datetime('now','Format','yyyyMMdd')) ']'];
+
+%RegExp Keys
+RegKeyROI = 'ROI[_]\d'; 
+RegKeyVD = ['(?<=Data' filesep filesep ')\d*']; %Video date
+
+%Plot parameters
+Label.YAx = 'V_{Run}(\mum/sec)';
+%Adjust jitter
+Jit = 0.10; 
+
+for j = 1:length(StrainLabels) 
+    %Find .mat files
+    Files = callResultsv2(MainPath, StrainLabels{j},Lambda);
+    %Preallocate
+    IPTG = zeros(length(Files),1);
+    Speeds_Flt = cell(length(Files),1);
+    RunCell = cell(length(Files),1);
+    RunCell_Flt = cell(length(Files),1);
+    RunDur = cell(length(Files),1); 
+    Temp = [];
+    
+    
+    for i = 1:length(Files) 
+        load(Files{i}) 
+        fprintf(['minimum T =' num2str(Results.minT) 'sec \n'])
+        fprintf(['minimum V =' num2str(Results.minV) 'um/sec \n \n'])
+        fprintf(['[IPTG] = ' num2str(RunReverse.Info.IPTG) 'uM \n \n'])
+        
+        IPTG(i) = RunReverse.Info.IPTG;
+        %Find ROIs and Video dates
+        VideoDates = regexp(Files,RegKeyVD,'match','once');
+        ROI = regexp(Files,RegKeyROI,'match','once');
+        
+        minT = Results.minT;
+        minV = Results.minV; 
+        T = Results.T; 
+        %Compute the cell containing run infomation 
+        RunCell{i} = RunBreakDownv6(Speeds,T,fps);  %RunBreakDownv4(S,T,fps) --> The order
+        %Filter out bugs below the set threshold 
+        [Speeds_Flt{i}, FilterMask] = filterout(Speeds,minT,minV,fps);
+        RunCell_Flt{i} = RunCell{i}(FilterMask,:); 
+        
+        switch observable 
+               case 'instV'
+                     %Select random "nBug" number of bugs 
+                     BugRow = randi(size(RunCell_Flt{i},1),[1 nBug]); 
+                        
+                     RunSubSet = RunCell_Flt{i}(BugRow,:);
+                     
+                     
+                     Label.Title  = {[StrainLabels{j} ' @ ' num2str(IPTG(i)) '\muM [IPTG]' ' - ' VideoDates{i} ' - ' ROI{i}]};
+                     hFig = stripchart(RunSubSet,Jit,Label);
+                     drawnow();
+                     
+                     S.ExpPath = ExpPath; 
+                     S.Strain = StrainLabels{j}; 
+                     S.Stamp = Stamp;
+                     S.PlotY = 'InstRunV_4thRun'; 
+                     S.IPTG = num2str(IPTG(i)); 
+                     S.VD = VideoDates{i};
+                     S.ROI = ROI{i};
+            
+                     ExportFig(hFig,S);
+                    
+               case 'meanV'
+                   continue
+
+               case 'medV'
+                    continue
+        end
+        
+    end
+    close all;     
+   
+end
+
+
+
+
+
+%% Functions     
+
+function [SSubset, FilterMask] = filterout(S,minT,minV,fps)
+
+ %Filter out trajectories
+         TotalTime = cellfun(@(x) length(x(:,1)).*1/fps,S); 
+         medV = cellfun(@(x) medianN(x(:,9)), S);
+        
+         FilterMask = medV > minV & TotalTime > minT;
+         SSubset = S(FilterMask); 
+end
+
+function ExportFig(hf,Strings)
+                                                        
+        FinalExpPath = fullfile(Strings.ExpPath,'RunSpeeds_PerBug',Strings.PlotY,Strings.Strain,[Strings.IPTG 'uM']);
+        if ~exist(FinalExpPath,'dir')
+            mkdir(FinalExpPath)
+        end      
+        FullFileName = [Strings.Stamp Strings.Strain '_' Strings.PlotY '_' Strings.VD '_IPTG_' Strings.IPTG 'uM_' Strings.ROI];
+        printfig(hf,fullfile(FinalExpPath,FullFileName),'-dpng');
+        printfig(hf,fullfile(FinalExpPath,FullFileName),'-dpdf');
+end
+
+
+
+
+    

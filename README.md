@@ -1,4 +1,4 @@
-# Bacterial_Track_Analysis
+# Bacterial Track Analysis
 
 The MATLAB code package for statistical analysis of bacterial trajectories. The tracks were extracted using the novel 3D-tracking method. 
 

@@ -1,0 +1,35 @@
+function X_filtered=BruteForceNoSpeedChangePositionFiltering(t,X,lambda)
+
+
+options=optimset('fminsearch');
+options.MaxFunEvals=1000*numel(X);
+options.MaxIter=1000*numel(X);
+
+
+
+% minimize residuals and sum of absolute changes in speed
+
+X_filtered=fminsearch(@(p)   ( sum(sum((p-X).^2,2))+lambda*sum(abs(diff(sqrt(sum(diff(p,1).^2,2)))))  )   , X,options );
+% minimize residuals and number of time points with changes in speed
+%threshold=0;
+%p=fminsearch(@(p)   ( sum(sum((p-X).^2,2))+lambda* sum(  abs(diff(sum(diff(p,1).^2,2))) >threshold ) )   , X,options );
+
+vraw=sqrt( sum(diff(X,1).^2,2) );
+vfilt=sqrt( sum(diff(X_filtered,1).^2,2) );
+
+
+
+
+
+plot(vraw,'ok-');
+hold on;
+plot(vfilt, '*-r');
+hold off
+xlabel('time (frames)')
+ylabel('speed (microns/frame)')
+KatjasGraphics
+legend('raw', 'filtered')
+title(['\lambda = ' num2str(lambda) ])
+drawnow;
+
+
